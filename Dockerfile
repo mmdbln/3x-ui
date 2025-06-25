@@ -1,5 +1,26 @@
 # ========================================================
-# Stage: Final Image of 3x-ui with Nginx Reverse Proxy
+# Stage 1: Builder
+# ========================================================
+FROM golang:1.24-alpine AS builder
+WORKDIR /app
+ARG TARGETARCH
+
+RUN apk --no-cache --update add \
+  build-base \
+  gcc \
+  wget \
+  unzip
+
+COPY . .
+
+ENV CGO_ENABLED=1
+ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
+
+RUN go build -ldflags "-w -s" -o build/x-ui main.go
+RUN ./DockerInit.sh "$TARGETARCH"
+
+# ========================================================
+# Stage 2: Final Image with Nginx Reverse Proxy
 # ========================================================
 FROM alpine
 ENV TZ=Asia/Tehran
@@ -16,7 +37,7 @@ COPY --from=builder /app/build/ /app/
 COPY --from=builder /app/DockerEntrypoint.sh /app/
 COPY --from=builder /app/x-ui.sh /usr/bin/x-ui
 
-# Copy nginx config
+# Copy nginx config file (make sure nginx.conf is in your project root)
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Configure fail2ban
@@ -31,6 +52,7 @@ RUN chmod +x \
   /app/x-ui \
   /usr/bin/x-ui
 
-# Start both nginx and 3x-ui
+# Run both nginx and x-ui
 CMD ["/bin/sh", "-c", "nginx && /app/DockerEntrypoint.sh"]
+
 ENTRYPOINT []
