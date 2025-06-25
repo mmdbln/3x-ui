@@ -1,25 +1,5 @@
 # ========================================================
-# Stage: Builder
-# ========================================================
-FROM golang:1.24-alpine AS builder
-WORKDIR /app
-ARG TARGETARCH
-
-RUN apk --no-cache --update add \
-  build-base \
-  gcc \
-  wget \
-  unzip
-
-COPY . .
-
-ENV CGO_ENABLED=1
-ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
-RUN go build -ldflags "-w -s" -o build/x-ui main.go
-RUN ./DockerInit.sh "$TARGETARCH"
-
-# ========================================================
-# Stage: Final Image of 3x-ui
+# Stage: Final Image of 3x-ui with Nginx Reverse Proxy
 # ========================================================
 FROM alpine
 ENV TZ=Asia/Tehran
@@ -29,12 +9,15 @@ RUN apk add --no-cache --update \
   ca-certificates \
   tzdata \
   fail2ban \
-  bash
+  bash \
+  nginx
 
 COPY --from=builder /app/build/ /app/
 COPY --from=builder /app/DockerEntrypoint.sh /app/
 COPY --from=builder /app/x-ui.sh /usr/bin/x-ui
 
+# Copy nginx config
+COPY nginx.conf /etc/nginx/nginx.conf
 
 # Configure fail2ban
 RUN rm -f /etc/fail2ban/jail.d/alpine-ssh.conf \
@@ -48,6 +31,6 @@ RUN chmod +x \
   /app/x-ui \
   /usr/bin/x-ui
 
-ENV XUI_ENABLE_FAIL2BAN="true"
-CMD [ "./x-ui" ]
-ENTRYPOINT [ "/app/DockerEntrypoint.sh" ]
+# Start both nginx and 3x-ui
+CMD ["/bin/sh", "-c", "nginx && /app/DockerEntrypoint.sh"]
+ENTRYPOINT []
