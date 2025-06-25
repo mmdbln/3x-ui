@@ -42,6 +42,6 @@ RUN chmod +x \
     /usr/bin/x-ui
 
 # اجرای همزمان nginx و 3x-ui
-CMD ["/bin/sh", "-c", "nginx && /app/DockerEntrypoint.sh"]
+CMD ["/bin/sh", "-c", "nginx -g 'daemon off;' & /app/DockerEntrypoint.sh"]
 
 ENTRYPOINT []
