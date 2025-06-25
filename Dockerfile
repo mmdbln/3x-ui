@@ -5,11 +5,7 @@ FROM golang:1.24-alpine AS builder
 WORKDIR /app
 ARG TARGETARCH
 
-RUN apk --no-cache --update add \
-  build-base \
-  gcc \
-  wget \
-  unzip
+RUN apk --no-cache add build-base gcc wget unzip
 
 COPY . .
 
@@ -20,39 +16,32 @@ RUN go build -ldflags "-w -s" -o build/x-ui main.go
 RUN ./DockerInit.sh "$TARGETARCH"
 
 # ========================================================
-# Stage 2: Final Image with Nginx Reverse Proxy
+# Stage 2: Final Image with Nginx Reverse Proxy (Lightweight)
 # ========================================================
-FROM alpine
+FROM alpine:latest
 ENV TZ=Asia/Tehran
 WORKDIR /app
 
-RUN apk add --no-cache --update \
-  ca-certificates \
-  tzdata \
-  fail2ban \
-  bash \
-  nginx
+# نصب فقط پکیج‌های لازم و سبک
+RUN apk update && apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    nginx \
+    bash
 
 COPY --from=builder /app/build/ /app/
 COPY --from=builder /app/DockerEntrypoint.sh /app/
 COPY --from=builder /app/x-ui.sh /usr/bin/x-ui
 
-# Copy nginx config file (make sure nginx.conf is in your project root)
+# کپی کانفیگ nginx (مطمئن شو فایل nginx.conf کنار Dockerfile هست)
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Configure fail2ban
-RUN rm -f /etc/fail2ban/jail.d/alpine-ssh.conf \
-  && cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local \
-  && sed -i "s/^\[ssh\]$/&\nenabled = false/" /etc/fail2ban/jail.local \
-  && sed -i "s/^\[sshd\]$/&\nenabled = false/" /etc/fail2ban/jail.local \
-  && sed -i "s/#allowipv6 = auto/allowipv6 = auto/g" /etc/fail2ban/fail2ban.conf
-
 RUN chmod +x \
-  /app/DockerEntrypoint.sh \
-  /app/x-ui \
-  /usr/bin/x-ui
+    /app/DockerEntrypoint.sh \
+    /app/x-ui \
+    /usr/bin/x-ui
 
-# Run both nginx and x-ui
+# اجرای همزمان nginx و 3x-ui
 CMD ["/bin/sh", "-c", "nginx && /app/DockerEntrypoint.sh"]
 
 ENTRYPOINT []
